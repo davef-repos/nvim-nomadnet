@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Python egg info
+*.egg-info/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor backups
+*~
+*.swp
+*.swo

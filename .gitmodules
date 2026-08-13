@@ -1,0 +1,3 @@
+[submodule "nomadnet_core"]
+	path = nomadnet_core
+	url = ../nomadnet-core

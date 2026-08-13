@@ -1,0 +1,25 @@
+# nvim-nomadnet pynvim plugin manifest
+# Also register as a symlink or copy to rplugin.vim
+#
+# ── rplugin.vim ───────────────────────────────────────────────────
+# The following should be in your rplugin.vim:
+# call remote#host#RegisterPlugin('python3', '.../nva.py', [
+#   \ {'type': 'command',  'name': 'NvaStart',             'sync': False, 'opts': {'nargs': '*', 'range': '', 'complete': 'dir'}},
+#   \ {'type': 'command',  'name': 'NvaStop',              'sync': False, 'opts': {}},
+#   \ {'type': 'command',  'name': 'NvaQuit',              'sync': False, 'opts': {}},
+#   \ {'type': 'command',  'name': 'NvaSync',              'sync': False, 'opts': {}},
+#   \ {'type': 'function', 'name': 'NvaConversations',      'sync': True, 'opts': {}},
+#   \ {'type': 'function', 'name': 'NvaConversationMessages','sync': True, 'opts': {}},
+#   \ {'type': 'function', 'name': 'NvaSendMessage',        'sync': False, 'opts': {}},
+#   \ {'type': 'function', 'name': 'NvaMarkRead',           'sync': False, 'opts': {}},
+#   \ {'type': 'function', 'name': 'NvaDeleteConversation', 'sync': False, 'opts': {}},
+#   \ {'type': 'function', 'name': 'NvaNetworkAnnounces',   'sync': True, 'opts': {}},
+#   \ {'type': 'function', 'name': 'NvaNodePages',          'sync': True, 'opts': {}},
+#   \ {'type': 'function', 'name': 'NvaFetchPage',          'sync': False, 'opts': {}},
+#   \ {'type': 'function', 'name': 'NvaDirectory',          'sync': True, 'opts': {}},
+#   \ {'type': 'function', 'name': 'NvaRRCChannels',        'sync': True, 'opts': {}},
+#   \ {'type': 'function', 'name': 'NvaRRCMessages',        'sync': True, 'opts': {}},
+#   \ {'type': 'function', 'name': 'NvaSyncStatus',         'sync': True, 'opts': {}},
+#   \ {'type': 'function', 'name': 'NvaIdentity',           'sync': True, 'opts': {}},
+#   \ {'type': 'function', 'name': 'NvaSetDisplayName',     'sync': False, 'opts': {}},
+# \ ])
