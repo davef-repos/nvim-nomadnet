@@ -30,7 +30,7 @@ echo "→ Installing Python dependencies..."
 "$VENV_PYTHON" -m pip install --quiet pynvim rns lxmf
 echo "  ✓ pynvim, rns, lxmf installed"
 
-# Install nomadnet-core from local source
+# Install nomadnet-core from submodule
 CORE_DIR="$PLUGIN_SRC/nomadnet_core"
 if [ -d "$CORE_DIR" ]; then
   "$VENV_PYTHON" -m pip install --quiet -e "$CORE_DIR"
@@ -63,7 +63,6 @@ echo "  ✓ rplugin symlinked"
 
 # 5. Ensure init.lua loads Python provider first
 if ! grep -q "nomadnet-python" "$NVIM_CONFIG/init.lua" 2>/dev/null; then
-  # Insert after shebang/preamble, before lazy bootstrap
   sed -i '1s/^/require("config.nomadnet-python")\n/' "$NVIM_CONFIG/init.lua"
   echo "  ✓ init.lua updated to load Python provider first"
 fi
