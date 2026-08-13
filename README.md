@@ -1,95 +1,222 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/markqvist/NomadNet/master/docs/_static/images/logo.png" alt="NomadNet" width="200"/>
+</p>
+
 # nvim-nomadnet
 
-A **Neovim plugin** for [NomadNet](https://github.com/markqvist/NomadNet) — a decentralized, encrypted mesh communication platform built on [Reticulum](https://github.com/markqvist/Reticulum) and [LXMF](https://github.com/markqvist/LXMF).
+> A Neovim plugin for [NomadNet](https://github.com/markqvist/NomadNet) — a decentralized, encrypted mesh communication platform built on [Reticulum](https://github.com/markqvist/Reticulum) and [LXMF](https://github.com/markqvist/LXMF).
 
-This plugin uses the `nomadnet_core` library (extracted as a reusable package) to provide a full NomadNet experience inside Neovim.
+**nvim-nomadnet** brings the full NomadNet experience into Neovim, allowing you to send encrypted messages, browse network peers, fetch node pages, participate in RRC channels, and manage your peer directory — all from within your editor.
 
 ## Features
 
-- **Conversations** — View, read, and send encrypted LXMF messages to peers
-- **Network Browser** — Browse announces from nodes, peers, and propagation nodes on the mesh
-- **Node Page Browser** — Fetch and view pages hosted on NomadNet nodes
-- **RRC Channels** — Browse and read RRC (Request-Response Conversation) chat channels
-- **Peer Directory** — View and manage known peers and their trust levels
-- **LXMF Sync** — Trigger sync with propagation nodes to fetch queued messages
+- **Encrypted Conversations** — View, read, and send encrypted LXMF messages directly to any peer on the mesh
+- **Network Browser** — Browse announces from nodes, peers, and propagation nodes
+- **Node Page Browser** — Fetch and browse HTML pages hosted on NomadNet nodes
+- **RRC Channels** — Browse and participate in Request-Response Conversation chat channels
+- **Peer Directory** — View, manage, and trust/untrust known peers
+- **LXMF Sync** — Trigger message sync from configured propagation nodes
+- **Statusline Integration** — Display NomadNet identity and status in your statusline
+- **Low Dependencies** — Uses nomadnet-core, a minimal UI-agnostic protocol layer
 
 ## Requirements
 
-- Neovim ≥ 0.8 (with Python 3 provider)
-- Python 3 with `pynvim` installed:
-  ```bash
-  pip install pynvim
-  ```
-- `nomadnet_core` (included as a git submodule at `nomadnet_core/`). Install from source:
-  ```bash
-  cd nomadnet_core
-  pip install -e .
-  ```
-  Or via pip when published:
-  ```bash
-  pip install nomadnet-core
-  ```
+| Dependency | Version | Notes |
+|------------|---------|-------|
+| [Neovim](https://neovim.io/) | ≥ 0.8 | With Python 3 provider (`:checkhealth provider.python`) |
+| [Python 3](https://python.org/) | ≥ 3.8 | With `pynvim` |
+| [Reticulum](https://github.com/markqvist/Reticulum) | ≥ 1.3.2 | Mesh networking stack |
+| [LXMF](https://github.com/markqvist/LXMF) | ≥ 1.0.0 | Lightweight encrypted messaging |
+| [nomadnet-core](https://github.com/markqvist/NomadNet) | — | Included as git submodule |
 
 ## Installation
 
-### Using a plugin manager (lazy.nvim)
+### Option A: lazy.nvim (recommended for LazyVim)
+
+> **Note for development**: If you maintain the repo at `~/src/nvim-nomadnet`, the spec below will automatically use it as a local dev copy. On other machines (or when the local path doesn't exist), lazy.nvim will clone from the GitHub URL once set.
+
+<details>
+<summary><strong>Install script (quick setup)</strong></summary>
+
+```bash
+# Clone the repo
+git clone --recursive https://github.com/yourusername/nvim-nomadnet ~/src/nvim-nomadnet
+
+# Run the installer
+cd ~/src/nvim-nomadnet
+bash install.sh
+```
+
+This will:
+1. Initialize the `nomadnet_core` git submodule
+2. Create a Python virtualenv with all dependencies
+3. Install `pynvim`, `rns`, and `lxmf` into the venv
+4. Install `nomadnet-core` from local source (editable mode)
+5. Register the rplugin and generate the remote plugin manifest
+6. Copy the lazy.nvim plugin spec to your config
+
+</details>
+
+<details>
+<summary><strong>Manual lazy.nvim setup</strong></summary>
+
+Place this in `~/.config/nvim/lua/plugins/nvim-nomadnet.lua`:
 
 ```lua
-{
-  dir = "~/src/NomadNet/nvim-nomadnet",  -- or a git URL
-  config = function()
-    require("nvim-nomadnet").setup({
+-- nvim-nomadnet plugin spec for lazy.nvim / LazyVim
+--
+-- Uses ~/src/nvim-nomadnet when present (development), otherwise
+-- clones from GitHub.
+
+local plugin_root = vim.fn.expand("~/src/nvim-nomadnet")
+local is_dev = vim.fn.isdirectory(plugin_root) == 1
+
+return {
+  {
+    name = "nvim-nomadnet",
+    -- url = "yourusername/nvim-nomadnet",  -- uncomment when on GitHub
+    opts = {
       configdir = nil,      -- nil = ~/.nomadnetwork
       rnsconfigdir = nil,   -- nil = ~/.reticulum
       verbose = false,
-    })
-  end,
+    },
+    config = function(_, opts)
+      require("nvim-nomadnet").setup(opts)
+    end,
+    lazy = false,
+    dir = is_dev and plugin_root or nil,
+    build = function()
+      local root = is_dev and plugin_root
+                or vim.fn.stdpath("data") .. "/lazy/nvim-nomadnet"
+      -- ... (see lazy-setup.lua for full build function)
+    end,
+  },
 }
 ```
 
-### Manual
+</details>
 
-```bash
-# Clone or symlink the plugin directory
-ln -s ~/src/NomadNet/nvim-nomadnet ~/.local/share/nvim/site/pack/plugins/start/nvim-nomadnet
-```
+<details>
+<summary><strong>Python provider configuration</strong></summary>
 
-Then in your `init.lua`:
+Before `lazy.nvim` bootstraps, your `init.lua` must set the Python host:
 
 ```lua
-require("nvim-nomadnet").setup()
+-- ~/.config/nvim/init.lua
+-- MUST be before lazy bootstrap:
+
+require("config.nomadnet-python")
+require("config.lazy")
 ```
 
-## Usage
+Where `~/.config/nvim/lua/config/nomadnet-python.lua` contains:
 
-### Commands
+```lua
+local plugin_venv = vim.fn.expand("~/src/nvim-nomadnet/.venv/bin/python3")
+if vim.fn.executable(plugin_venv) == 1 then
+  vim.g.python3_host_prog = plugin_venv
+end
+```
+
+</details>
+
+### Option B: vim-plug
+
+```vim
+Plug '~/src/nvim-nomadnet', { 'do': 'bash install.sh' }
+```
+
+### Option C: Manual (packpath)
+
+```bash
+# Clone with submodules
+git clone --recursive https://github.com/yourusername/nvim-nomadnet \
+  ~/.local/share/nvim/site/pack/plugins/start/nvim-nomadnet
+
+# Or use the install script
+cd ~/.local/share/nvim/site/pack/plugins/start/nvim-nomadnet
+bash install.sh
+```
+
+## Quick Start
+
+1. **Start Neovim** and run:
+
+```vim
+:NvaStart
+```
+
+This loads or creates your NomadNet identity, initializes Reticulum, and starts the LXMF router.
+
+2. **Open the conversation list**:
+
+```vim
+:NvaConversations
+```
+or press `<leader>Nc`.
+
+3. **Browse the network** for peers and nodes:
+
+```vim
+:NvaNetwork
+```
+or press `<leader>Nn`.
+
+4. **Browse RRC channels**:
+
+```vim
+:NvaChannels
+```
+or press `<leader>Nh`.
+
+5. **Send a message**: Navigate to a conversation or peer identity, then:
+
+```vim
+:NvaSendMessage <destination_hash> "Your message"
+```
+
+## Commands
+
+### Core
 
 | Command | Description |
 |---------|-------------|
-| `:NvaStart [configdir] [rnsdir]` | Start NomadNet core (loads/creates identity) |
-| `:NvaConversations` | Open conversation list |
-| `:NvaNetwork` | Open network announce browser |
-| `:NvaChannels` | Open RRC channel list |
-| `:NvaDirectory` | Open peer directory |
-| `:NvaSync` | Trigger LXMF sync from propagation node |
-| `:NvaRefresh` | Refresh current view |
-| `:NvaQuit` | Stop NomadNet |
+| `:NvaStart [configdir] [rnsdir]` | Start NomadNet — loads/creates identity, initializes Reticulum and LXMF |
+| `:NvaQuit` | Gracefully stop the NomadNet core |
+| `:NvaRefresh` | Redraw the currently active nomadnet buffer |
+| `:NvaSync` | Trigger LXMF message sync from configured propagation node |
 
-### Keybindings (in nomadnet buffers)
+### Views
 
-| Key | Action |
-|-----|--------|
-| `<CR>` | Open / select item under cursor |
-| `r` | Refresh current view |
-| `q` | Close current buffer / quit view |
-| `d` | Delete conversation (in conversation list) |
-| `c` | Compose message (in conversation view) |
-| `u` | Fetch URL (in network view) |
-| `<C-s>` | Send composed message (in compose buffer) |
-| `n` | Sync messages (in conversation list) |
-| `m` | Mark selected conversation as read |
+| Command | Description |
+|---------|-------------|
+| `:NvaConversations` | Open the encrypted conversation list |
+| `:NvaNetwork` | Open the network announce browser |
+| `:NvaChannels` | Open the RRC (channels) list |
+| `:NvaDirectory` | Open the peer trust directory |
 
-### Leader key shortcuts
+## Keybindings
+
+### NomadNet Buffers
+
+| Key | Action | Context |
+|-----|--------|---------|
+| `<CR>` | Open / select item under cursor | All views |
+| `<Tab>` | Cycle views (conv → network → channels → directory) | All views |
+| `r` | Refresh current view | All views |
+| `q` | Close current buffer | All views |
+| `?` | Toggle help overlay | All views |
+| `d` | Delete selected conversation | Conversation list |
+| `c` | Compose new message to selected peer | Conversation list / Network |
+| `u` | Fetch page at URL under cursor | Network browser |
+| `n` | Sync messages from propagation node | Conversation list |
+| `m` | Mark selected conversation as read | Conversation list |
+| `<C-s>` | Send message | Compose buffer |
+| `Y` | Yank identity hash under cursor | All views |
+
+### Leader Shortcuts
+
+These are defined in the `setup()` function. The default prefix is `<leader>N` (capital N).
 
 | Shortcut | Command |
 |----------|---------|
@@ -99,16 +226,192 @@ require("nvim-nomadnet").setup()
 | `<leader>Nd` | `:NvaDirectory` |
 | `<leader>Ns` | `:NvaSync` |
 
+To customize the prefix, pass `map_prefix` in setup:
+
+```lua
+require("nvim-nomadnet").setup({
+  map_prefix = "<leader>M",  -- default is <leader>N
+})
+```
+
+## Configuration
+
+All options and their defaults:
+
+```lua
+require("nvim-nomadnet").setup({
+  configdir = nil,      -- Path to NomadNet config (nil = ~/.nomadnetwork)
+  rnsconfigdir = nil,   -- Path to RNS config (nil = ~/.reticulum)
+  map_prefix = "<LocalLeader>n",  -- Prefix for nomadnet buffer keymaps
+  detail_width = 80,    -- Default width for detail/info windows
+  verbose = false,      -- Enable verbose RNS logging
+})
+```
+
+## API
+
+### Lua Functions
+
+| Function | Description |
+|----------|-------------|
+| `require("nvim-nomadnet").setup(opts)` | Initialize the plugin with options |
+| `require("nvim-nomadnet").start()` | Start NomadNet core (`:NvaStart`) |
+| `require("nvim-nomadnet").stop()` | Stop NomadNet core |
+| `require("nvim-nomadnet").refresh()` | Redraw current view |
+| `require("nvim-nomadnet").cycle_view()` | Cycle through views |
+| `require("nvim-nomadnet").open_conversation()` | Open conversation list |
+| `require("nvim-nomadnet").open_announce()` | Open network browser |
+| `require("nvim-nomadnet").open_channel()` | Open RRC channel list |
+| `require("nvim-nomadnet").open_directory()` | Open peer directory |
+| `require("nvim-nomadnet").statusline()` | Returns statusline string |
+
+### Statusline Integration
+
+Add NomadNet identity to your statusline:
+
+```lua
+-- In your statusline configuration:
+set statusline+=%{%v:lua.require('nvim-nomadnet').statusline()%}
+```
+
 ## Architecture
 
 ```
-Neovim ←→ nvim-nomadnet (Lua) ←→ nva.py (Python RPC plugin) ←→ nomadnet_core (Python)
+┌────────────────────────────────────────────────────────┐
+│                     Neovim                             │
+│  ┌──────────────┐       ┌──────────────────────────┐  │
+│  │ Lua Plugin    │◄─────►│ Python Backend (nva.py)  │  │
+│  │ init.lua      │ RPC   │ @pynvim.plugin           │  │
+│  │               │       │                          │  │
+│  │ • Keymaps     │       │ • Conversation API       │  │
+│  │ • Commands    │       │ • Network API            │  │
+│  │ • Buffer mgmt │       │ • Directory API          │  │
+│  │ • Rendering   │       │ • RRC API                │  │
+│  └──────────────┘       └──────┬───────────────────┘  │
+└────────────────────────────────┼──────────────────────┘
+                                 │
+                    ┌────────────▼────────────┐
+                    │    nomadnet_core         │
+                    │    (git submodule)       │
+                    │                          │
+                    │ • Conversation           │
+                    │ • Directory              │
+                    │ • Node                   │
+                    │ • RRC                    │
+                    │ • PageFetcher            │
+                    │ • util                   │
+                    └──────┬───────────────────┘
+                           │
+              ┌────────────┼────────────┐
+              ▼            ▼            ▼
+         Reticulum       LXMF      HTTP/Node
+         (mesh net)    (messages)   (pages)
 ```
 
-- **Lua layer** (`lua/nvim-nomadnet/init.lua`): Handles buffer management, keymaps, and user commands.
-- **Python backend** (`python/nva.py`): A `pynvim` plugin that wraps `nomadnet_core` and exposes API functions (`NvaConversations`, `NvaSendMessage`, etc.).
-- **Core library** (`nomadnet_core/`): The reusable, UI-agnostic protocol and data-model layer.
+### Layer Details
+
+1. **Lua Plugin** (`lua/nvim-nomadnet/init.lua`)
+   - Single-file entry point
+   - Creates and manages Neovim buffers for each view
+   - Registers commands (`:Nva*`) and keymaps
+   - Renders structured data (tables, message threads, lists)
+   - Communicates with the Python backend via `vim.fn.Nva*` RPC calls
+
+2. **Python Backend** (`python/nva.py`)
+   - `NomadNetAgent` class decorated with `@pynvim.plugin`
+   - Exposes API functions (`NvaConversations`, `NvaSendMessage`, etc.)
+   - Implements the `UIBackend` interface for `nomadnet_core`
+   - Manages identity, announces, and network state
+
+3. **Core Library** (`nomadnet_core/`)
+   - Git submodule pointing to the [nomadnet-core](https://github.com/markqvist/NomadNet) project
+   - UI-agnostic protocol and data-model layer
+   - Handles Reticulum transport, LXMF message routing, RRC protocol, directory management
+
+## Updating
+
+### From lazy.nvim (GitHub URL mode)
+
+```vim
+:Lazy update nvim-nomadnet
+```
+
+If lazy.nvim clones from GitHub, it will automatically fetch the submodule.
+
+### From local development copy
+
+```bash
+cd ~/src/nvim-nomadnet
+git pull                              # Pull latest plugin changes
+git submodule update --remote         # Pull latest nomadnet-core
+nvim --headless "+Lazy build nvim-nomadnet" +qa
+```
+
+### Using the install script
+
+```bash
+cd ~/src/nvim-nomadnet
+git pull
+git submodule update --init --recursive
+bash install.sh
+```
+
+## Troubleshooting
+
+### "Python 3 provider is not available"
+
+Ensure your Python virtualenv is set up:
+
+```bash
+cd ~/src/nvim-nomadnet
+python3 -m venv .venv
+.venv/bin/pip install pynvim rns lxmf
+.venv/bin/pip install -e nomadnet_core
+```
+
+Then configure the Python host in `init.lua`:
+
+```lua
+vim.g.python3_host_prog = "~/src/nvim-nomadnet/.venv/bin/python3"
+```
+
+### "No commands available"
+
+Run `:UpdateRemotePlugins` and restart Neovim. Ensure `python/nva.py` is symlinked to your rplugin directory:
+
+```bash
+ln -sf ~/src/nvim-nomadnet/python/nva.py \
+      ~/.config/nvim/rplugin/python3/nva.py
+```
+
+### ":checkhealth" help
+
+```vim
+:checkhealth provider.python
+:checkhealth nvim-nomadnet
+```
+
+### Logging
+
+Enable verbose logging for debugging:
+
+```lua
+require("nvim-nomadnet").setup({
+  verbose = true,
+})
+```
+
+Check RNS logs at `~/.reticulum/logfile` and NomadNet logs at `~/.nomadnetwork/logfile`.
+
+## Related Projects
+
+- [NomadNet](https://github.com/markqvist/NomadNet) — The original NomadNet TUI application
+- [Reticulum](https://github.com/markqvist/Reticulum) — Cryptography-based networking stack
+- [LXMF](https://github.com/markqvist/LXMF) — Lightweight eXtensible Message Format
+- [nomadnet-core](https://github.com/markqvist/NomadNet) — Reusable core library (git submodule)
 
 ## License
 
-Same as NomadNet — MIT License.
+MIT — See [LICENSE](https://github.com/markqvist/NomadNet/blob/master/LICENSE) for details.
+
+Built on the work of [Mark Qvist](https://github.com/markqvist) and the NomadNet / Reticulum community.
