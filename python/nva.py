@@ -250,16 +250,30 @@ class NomadNetAgent(object):
         if error:
             self.nvim.async_call(self.nvim.out_write,
                                  f"Page error for {url}: {error[1]}\n")
+            self.nvim.async_call(self.nvim.command,
+                                 f"echohl ErrorMsg | echo 'NomadNet: Page error - {error[1]}' | echohl None")
             return
         self.nvim.async_call(self._display_page, url, content, meta)
 
     def _display_page(self, url, content, meta):
-        buf = self.nvim.current.buffer
-        buf[:] = content.split("\n") if content else ["(empty page)"]
-        buf.name = f"nomadnet://{url}"
-        buf.options["modified"] = False
-        buf.options["filetype"] = "nomadnet"
-        self.nvim.command("setlocal buftype=nofile nomodifiable")
+        """Create a new buffer to display the fetched page content."""
+        api = self.nvim.api
+        buf = api.create_buf(False, True)
+        api.buf_set_option(buf, "buftype", "nofile")
+        api.buf_set_option(buf, "bufhidden", "wipe")
+        api.buf_set_option(buf, "swapfile", False)
+        api.buf_set_option(buf, "modified", False)
+        api.buf_set_name(buf, f"nomadnet://{url}")
+
+        lines = content.split("\n") if content else ["(empty page)"]
+        api.buf_set_lines(buf, 0, -1, False, lines)
+        api.buf_set_option(buf, "modified", False)
+        api.buf_set_option(buf, "filetype", "nomadnet")
+        api.buf_set_keymap(buf, "n", "q",
+                           ":bdelete<CR>",
+                           {"noremap": True, "silent": True, "desc": "Close"})
+
+        api.set_current_buf(buf)
 
     # ──────────────────────────────────────────────────────────────
     # Directory
