@@ -10,6 +10,11 @@ NVIM_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/nvim"
 echo "=== nvim-nomadnet Installer ==="
 echo ""
 
+# 0. Ensure git submodules are initialized
+echo "→ Initializing git submodules..."
+git -C "$PLUGIN_SRC" submodule update --init --recursive
+echo "  ✓ submodules up to date"
+
 # 1. Create Python venv with all dependencies
 echo "→ Setting up Python venv..."
 VENV_PYTHON="$PLUGIN_SRC/.venv/bin/python3"

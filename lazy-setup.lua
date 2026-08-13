@@ -10,6 +10,13 @@
 -- Requires:
 --   The following in init.lua BEFORE bootstrap lazy.nvim:
 --     vim.g.python3_host_prog = "~/src/nvim-nomadnet/.venv/bin/python3"
+--
+-- Updating:
+--   Since lazy.nvim treats dir= plugins as local, it won't auto-update
+--   the git repo or submodules. To update manually:
+--     1. cd ~/src/nvim-nomadnet && git pull
+--     2. git submodule update --remote nomadnet_core
+--     3. nvim --headless "+Lazy build nvim-nomadnet" +qa
 
 local plugin_root = vim.fn.expand("~/src/nvim-nomadnet")
 
@@ -30,6 +37,12 @@ return {
     -- Keymaps are registered in lua/nvim-nomadnet/init.lua setup()
     -- Build step: create venv with all deps, symlink rplugin
     build = function()
+      -- 0. Ensure git submodules are up to date
+      vim.fn.system({ "git", "-C", plugin_root, "submodule", "update", "--init", "--recursive" })
+      if vim.v.shell_error ~= 0 then
+        vim.notify("nvim-nomadnet: git submodule update failed — check " .. plugin_root, vim.log.levels.WARN)
+      end
+
       local venv_python = plugin_root .. "/.venv/bin/python3"
 
       -- 1. Create venv if missing
