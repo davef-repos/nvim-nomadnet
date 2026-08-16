@@ -4,6 +4,15 @@
 ==============================================================================
 INTRODUCTION                                    *nvim-nomadnet-introduction*
 
+╔══════════════════════════════════════════════════════════════════════╗
+║  ⚠️  VIBE-CODED ALPHA SOFTWARE                                      ║
+║                                                                      ║
+║  This is an experimental, rapidly-evolving project built with AI     ║
+║  assistance. Things may break, APIs may change without notice, and   ║
+║  some features may not work correctly yet. Use at your own risk,     ║
+║  and please report issues!                                           ║
+╚══════════════════════════════════════════════════════════════════════╝
+
 nvim-nomadnet is a Neovim plugin that provides access to NomadNet, a
 decentralized, encrypted mesh communication platform built on Reticulum
 and LXMF. It uses the nomadnet_core library (git submodule) for all

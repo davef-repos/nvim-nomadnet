@@ -4,6 +4,8 @@
 
 # nvim-nomadnet
 
+> **⚠️ Vibe-coded alpha software** — This is an experimental, rapidly-evolving project built with AI assistance. Things may break, APIs may change without notice, and some features may not work correctly yet. Use at your own risk, and please report issues!
+
 > A Neovim plugin for [NomadNet](https://github.com/markqvist/NomadNet) — a decentralized, encrypted mesh communication platform built on [Reticulum](https://github.com/markqvist/Reticulum) and [LXMF](https://github.com/markqvist/LXMF).
 
 **nvim-nomadnet** brings the full NomadNet experience into Neovim, allowing you to send encrypted messages, browse network peers, fetch node pages, participate in RRC channels, and manage your peer directory — all from within your editor.

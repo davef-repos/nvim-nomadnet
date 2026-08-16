@@ -1,5 +1,7 @@
 # Contributing to nvim-nomadnet
 
+> **⚠️ Vibe-coded alpha software** — This is an experimental, rapidly-evolving project built with AI assistance. Things may break, APIs may change without notice, and some features may not work correctly yet. Keep this in mind when filing issues or submitting PRs.
+
 Thank you for your interest in contributing! This plugin is part of the broader NomadNet ecosystem, and contributions are welcome at every level.
 
 ## Code of Conduct
