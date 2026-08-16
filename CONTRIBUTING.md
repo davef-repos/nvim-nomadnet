@@ -43,10 +43,10 @@ Open an issue describing:
 
 ```bash
 # Clone with submodules
-git clone --recursive https://github.com/yourusername/nvim-nomadnet ~/src/nvim-nomadnet
+git clone --recursive https://github.com/yourusername/nvim-nomadnet
+cd nvim-nomadnet
 
 # Set up the Python environment
-cd ~/src/nvim-nomadnet
 python3 -m venv .venv
 .venv/bin/pip install -U pip
 .venv/bin/pip install pynvim rns lxmf
@@ -77,7 +77,7 @@ nvim-nomadnet/
 ├── plugin/
 │   └── nvim-nomadnet.vim   # Vimscript plugin loader
 ├── python/
-│   ├── nva.py              # Python pynvim backend (433 lines)
+│   ├── nva.py              # Python pynvim backend
 │   └── provider.lua        # Python host config sample
 ├── install.sh              # Automated installer
 ├── lazy-setup.lua          # lazy.nvim plugin spec

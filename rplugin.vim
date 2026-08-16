@@ -16,7 +16,7 @@ when pynvim processes the file.
 # after placing nva.py where Neovim can find it.
 
 # Recommended placement:
-#   ln -s ~/src/NomadNet/nvim-nomadnet/python/nva.py \
+#   ln -s /path/to/nvim-nomadnet/python/nva.py \
 #         ~/.config/nvim/rplugin/python3/nva.py
 # Then run:
 #   :UpdateRemotePlugins

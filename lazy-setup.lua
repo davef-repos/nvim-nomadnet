@@ -1,25 +1,15 @@
 -- nvim-nomadnet plugin spec for lazy.nvim / LazyVim
 --
--- How it works:
---   - If ~/src/nvim-nomadnet exists (development), uses that local copy
---   - Otherwise, lazy.nvim clones from the GitHub URL below (once set)
+-- lazy.nvim will clone this repo from GitHub automatically.
+-- Update the `url` below when the repo is on GitHub.
 --
--- When ready for GitHub:
---   1. Push both repos to GitHub
---   2. Uncomment the `url` line below
---   3. Update .gitmodules to point to the GitHub URL
---
--- Requires:
---   The following in init.lua BEFORE bootstrap lazy.nvim:
---     vim.g.python3_host_prog = "~/src/nvim-nomadnet/.venv/bin/python3"
-
-local plugin_root = vim.fn.expand("~/src/nvim-nomadnet")
-local is_dev = vim.fn.isdirectory(plugin_root) == 1
+-- NOTE: Before lazy.nvim bootstrap, your init.lua must set the
+-- Python host provider. See README.md for details.
 
 return {
   {
     name = "nvim-nomadnet",
-    -- url = "yourusername/nvim-nomadnet",  -- uncomment when on GitHub
+    url = "davef-repos/nvim-nomadnet",  -- update this when on GitHub
     opts = {
       configdir = nil,      -- nil = ~/.nomadnetwork
       rnsconfigdir = nil,   -- nil = ~/.reticulum
@@ -30,18 +20,8 @@ return {
     end,
     lazy = false,
 
-    -- Local dev path fallback; ignored when url is set
-    dir = is_dev and plugin_root or nil,
-
     build = function()
-      local root
-      if is_dev then
-        root = plugin_root
-        vim.fn.system({ "git", "-C", root, "submodule", "update", "--init", "--recursive" })
-      else
-        root = vim.fn.stdpath("data") .. "/lazy/nvim-nomadnet"
-      end
-
+      local root = vim.fn.stdpath("data") .. "/lazy/nvim-nomadnet"
       local venv_python = root .. "/.venv/bin/python3"
 
       if vim.fn.executable(venv_python) == 0 then

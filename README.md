@@ -33,17 +33,15 @@
 
 ### Option A: lazy.nvim (recommended for LazyVim)
 
-> **Note for development**: If you maintain the repo at `~/src/nvim-nomadnet`, the spec below will automatically use it as a local dev copy. On other machines (or when the local path doesn't exist), lazy.nvim will clone from the GitHub URL once set.
-
 <details>
 <summary><strong>Install script (quick setup)</strong></summary>
 
 ```bash
-# Clone the repo
-git clone --recursive https://github.com/yourusername/nvim-nomadnet ~/src/nvim-nomadnet
+# Clone the repo with submodules
+git clone --recursive https://github.com/davef-repos/nvim-nomadnet
 
-# Run the installer
-cd ~/src/nvim-nomadnet
+# Run the installer from the repo root
+cd nvim-nomadnet
 bash install.sh
 ```
 
@@ -60,21 +58,14 @@ This will:
 <details>
 <summary><strong>Manual lazy.nvim setup</strong></summary>
 
-Place this in `~/.config/nvim/lua/plugins/nvim-nomadnet.lua`:
+lazy.nvim will clone the repo automatically. Place the following spec in your plugins directory (e.g. `~/.config/nvim/lua/plugins/nvim-nomadnet.lua`):
 
 ```lua
 -- nvim-nomadnet plugin spec for lazy.nvim / LazyVim
---
--- Uses ~/src/nvim-nomadnet when present (development), otherwise
--- clones from GitHub.
-
-local plugin_root = vim.fn.expand("~/src/nvim-nomadnet")
-local is_dev = vim.fn.isdirectory(plugin_root) == 1
-
 return {
   {
     name = "nvim-nomadnet",
-    -- url = "yourusername/nvim-nomadnet",  -- uncomment when on GitHub
+    url = "davef-repos/nvim-nomadnet",
     opts = {
       configdir = nil,      -- nil = ~/.nomadnetwork
       rnsconfigdir = nil,   -- nil = ~/.reticulum
@@ -84,10 +75,8 @@ return {
       require("nvim-nomadnet").setup(opts)
     end,
     lazy = false,
-    dir = is_dev and plugin_root or nil,
     build = function()
-      local root = is_dev and plugin_root
-                or vim.fn.stdpath("data") .. "/lazy/nvim-nomadnet"
+      local root = vim.fn.stdpath("data") .. "/lazy/nvim-nomadnet"
       -- ... (see lazy-setup.lua for full build function)
     end,
   },
@@ -112,7 +101,8 @@ require("config.lazy")
 Where `~/.config/nvim/lua/config/nomadnet-python.lua` contains:
 
 ```lua
-local plugin_venv = vim.fn.expand("~/src/nvim-nomadnet/.venv/bin/python3")
+local plugin_root = vim.fn.stdpath("data") .. "/lazy/nvim-nomadnet"
+local plugin_venv = plugin_root .. "/.venv/bin/python3"
 if vim.fn.executable(plugin_venv) == 1 then
   vim.g.python3_host_prog = plugin_venv
 end
@@ -123,17 +113,17 @@ end
 ### Option B: vim-plug
 
 ```vim
-Plug '~/src/nvim-nomadnet', { 'do': 'bash install.sh' }
+Plug 'davef-repos/nvim-nomadnet', { 'do': 'bash install.sh' }
 ```
 
 ### Option C: Manual (packpath)
 
 ```bash
 # Clone with submodules
-git clone --recursive https://github.com/yourusername/nvim-nomadnet \
+git clone --recursive https://github.com/davef-repos/nvim-nomadnet \
   ~/.local/share/nvim/site/pack/plugins/start/nvim-nomadnet
 
-# Or use the install script
+# Run the installer
 cd ~/.local/share/nvim/site/pack/plugins/start/nvim-nomadnet
 bash install.sh
 ```
@@ -330,18 +320,18 @@ set statusline+=%{%v:lua.require('nvim-nomadnet').statusline()%}
 
 ## Updating
 
-### From lazy.nvim (GitHub URL mode)
+### From lazy.nvim
 
 ```vim
 :Lazy update nvim-nomadnet
 ```
 
-If lazy.nvim clones from GitHub, it will automatically fetch the submodule.
+lazy.nvim will automatically fetch the submodule.
 
-### From local development copy
+### From a local clone
 
 ```bash
-cd ~/src/nvim-nomadnet
+cd /path/to/nvim-nomadnet
 git pull                              # Pull latest plugin changes
 git submodule update --remote         # Pull latest nomadnet-core
 nvim --headless "+Lazy build nvim-nomadnet" +qa
@@ -350,7 +340,7 @@ nvim --headless "+Lazy build nvim-nomadnet" +qa
 ### Using the install script
 
 ```bash
-cd ~/src/nvim-nomadnet
+cd /path/to/nvim-nomadnet
 git pull
 git submodule update --init --recursive
 bash install.sh
@@ -363,7 +353,7 @@ bash install.sh
 Ensure your Python virtualenv is set up:
 
 ```bash
-cd ~/src/nvim-nomadnet
+cd /path/to/nvim-nomadnet
 python3 -m venv .venv
 .venv/bin/pip install pynvim rns lxmf
 .venv/bin/pip install -e nomadnet_core
@@ -372,7 +362,8 @@ python3 -m venv .venv
 Then configure the Python host in `init.lua`:
 
 ```lua
-vim.g.python3_host_prog = "~/src/nvim-nomadnet/.venv/bin/python3"
+local plugin_root = vim.fn.stdpath("data") .. "/lazy/nvim-nomadnet"
+vim.g.python3_host_prog = plugin_root .. "/.venv/bin/python3"
 ```
 
 ### "No commands available"
@@ -380,7 +371,7 @@ vim.g.python3_host_prog = "~/src/nvim-nomadnet/.venv/bin/python3"
 Run `:UpdateRemotePlugins` and restart Neovim. Ensure `python/nva.py` is symlinked to your rplugin directory:
 
 ```bash
-ln -sf ~/src/nvim-nomadnet/python/nva.py \
+ln -sf /path/to/nvim-nomadnet/python/nva.py \
       ~/.config/nvim/rplugin/python3/nva.py
 ```
 

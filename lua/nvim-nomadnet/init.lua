@@ -94,12 +94,77 @@ local function nomadnet_buf_map(buf, lhs, rhs, desc)
   pcall(vim.api.nvim_buf_set_keymap, buf, "n", lhs, rhs, opts)
 end
 
+-- ── Helper: check for error response from Python ─────────────────
+
+-- Tracks whether we've already notified the user about startup delay
+-- for each view, so refresh doesn't spam notifications.
+local _notified_startup = {}
+
+local function check_response(result, view_name)
+  if result == nil then return nil end
+  if type(result) == "table" and result.error then
+    if view_name and not _notified_startup[view_name] then
+      vim.notify(result.error, vim.log.levels.WARN)
+      _notified_startup[view_name] = true
+    end
+    return nil
+  end
+  return result
+end
+
+-- ── Helper: show a friendly "not ready yet" buffer ───────────────
+
+local function show_waiting_buffer(view, title, message)
+  -- Track which view we're waiting for so `r` can try re-opening it
+  state.current_view = view
+  -- Reuse existing waiting buffer if it's still valid to avoid E95
+  local buf = nil
+  for _, b in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_valid(b) and vim.fn.bufname(b) == "nomadnet://waiting" then
+      buf = b
+      break
+    end
+  end
+  if not buf then
+    buf = vim.api.nvim_create_buf(false, true)
+    setup_nomadnet_buffer(buf, "waiting", title or "NomadNet")
+  end
+  local lines = {
+    "  NomadNet",
+    string.rep("─", 60),
+    "",
+    "  " .. (message or "NomadNet is starting up..."),
+    "",
+    "  ┌─ Help ─────────────────────────────┐",
+    "  │ r    Refresh this view             │",
+    "  │ q    Close                         │",
+    "  │ :NvaStatus  Check startup status   │",
+    "  │ :messages  Check for errors        │",
+    "  └────────────────────────────────────┘",
+    "",
+    "  NomadNet will be ready once the Reticulum network",
+    "  stack has finished initialising.",
+  }
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+  vim.api.nvim_buf_set_option(buf, "modified", false)
+  nomadnet_buf_map(buf, "r", ":lua require'nvim-nomadnet'.refresh()<CR>", "Refresh")
+  nomadnet_buf_map(buf, "q", ":bdelete<CR>", "Close")
+  vim.api.nvim_set_current_buf(buf)
+end
+
 -- ── Render conversations list ────────────────────────────────────
 
 local function render_conversations()
+  vim.notify("[debug] render_conversations called", vim.log.levels.DEBUG)
   local ok, convs = pcall(vim.fn["NvaConversations"])
   if not ok or not convs then
     vim.api.nvim_err_writeln("NomadNet not running. Use :NvaStart")
+    return
+  end
+  convs = check_response(convs, "conversations")
+  if not convs then
+    show_waiting_buffer("conversations", "Conversations",
+      "Waiting for NomadNet conversations...")
     return
   end
 
@@ -161,6 +226,8 @@ end
 local function render_conversation_messages(src_hash_hex, display_name)
   local ok, msgs = pcall(vim.fn["NvaConversationMessages"], src_hash_hex)
   if not ok then return end
+  msgs = check_response(msgs)
+  if not msgs then return end
 
   local buf = vim.api.nvim_create_buf(false, true)
   setup_nomadnet_buffer(buf, "msg-" .. identity_short(src_hash_hex), display_name or "Message")
@@ -207,9 +274,16 @@ end
 -- ── Render network announces ─────────────────────────────────────
 
 local function render_network()
+  vim.notify("[debug] render_network called", vim.log.levels.DEBUG)
   local ok, announces = pcall(vim.fn["NvaNetworkAnnounces"])
   if not ok or not announces then
     vim.api.nvim_err_writeln("NomadNet not running.")
+    return
+  end
+  announces = check_response(announces, "network")
+  if not announces then
+    show_waiting_buffer("network", "Network",
+      "Waiting for NomadNet network announces...")
     return
   end
 
@@ -249,10 +323,11 @@ local function render_network()
   vim.api.nvim_buf_set_option(buf, "modified", false)
   vim.api.nvim_buf_set_var(buf, "nomadnet_entries", safe_entries)
 
-  nomadnet_buf_map(buf, "<CR>", ":lua require'nvim-nomadnet'.open_announce()<CR>", "Open announce")
-  nomadnet_buf_map(buf, "r",    ":lua require'nvim-nomadnet'.refresh()<CR>",       "Refresh")
-  nomadnet_buf_map(buf, "q",    ":bdelete<CR>",                                    "Close")
-  nomadnet_buf_map(buf, "u",    ":lua require'nvim-nomadnet'.fetch_url()<CR>",     "Fetch URL")
+  nomadnet_buf_map(buf, "<CR>", ":lua require'nvim-nomadnet'.open_announce()<CR>",             "Open announce")
+  nomadnet_buf_map(buf, "a",    ":lua require'nvim-nomadnet'.add_announce_to_directory()<CR>",  "Add to directory")
+  nomadnet_buf_map(buf, "r",    ":lua require'nvim-nomadnet'.refresh()<CR>",                    "Refresh")
+  nomadnet_buf_map(buf, "q",    ":bdelete<CR>",                                                 "Close")
+  nomadnet_buf_map(buf, "u",    ":lua require'nvim-nomadnet'.fetch_url()<CR>",                  "Fetch URL")
 
   vim.api.nvim_set_current_buf(buf)
   state.current_view = "network"
@@ -261,9 +336,16 @@ end
 -- ── Render directory ─────────────────────────────────────────────
 
 local function render_directory()
+  vim.notify("[debug] render_directory called", vim.log.levels.DEBUG)
   local ok, entries = pcall(vim.fn["NvaDirectory"])
   if not ok or not entries then
     vim.api.nvim_err_writeln("NomadNet not running.")
+    return
+  end
+  entries = check_response(entries, "directory")
+  if not entries then
+    show_waiting_buffer("directory", "Directory",
+      "Waiting for NomadNet peer directory...")
     return
   end
 
@@ -285,17 +367,27 @@ local function render_directory()
     for _, e in ipairs(entries) do
       local sh     = identity_short(e[1])
       local name   = e[2] or sh
-      local trust  = trust_name(e[3])
+      local icon   = trust_label(e[3])
       local node   = e[4] and "🖥" or ""
-      table.insert(lines, string.format("  %s %-28s %s %s", trust_name(e[3]):sub(1, 1), name, sh, node))
+      table.insert(lines, string.format("  %s %-28s %s %s", icon, name, sh, node))
     end
   end
 
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
   vim.api.nvim_buf_set_option(buf, "modified", false)
 
-  nomadnet_buf_map(buf, "r", ":lua require'nvim-nomadnet'.refresh()<CR>", "Refresh")
-  nomadnet_buf_map(buf, "q", ":bdelete<CR>", "Close")
+  -- Store entries for linkability
+  local safe_entries = {}
+  for _, e in ipairs(entries) do
+    safe_entries[#safe_entries + 1] = { e[1], e[2], e[3], e[4], e[7], e[8] }
+  end
+  vim.api.nvim_buf_set_var(buf, "nomadnet_entries", safe_entries)
+
+  nomadnet_buf_map(buf, "<CR>", ":lua require'nvim-nomadnet'.open_directory_entry()<CR>", "Browse")
+  nomadnet_buf_map(buf, "a",    ":lua require'nvim-nomadnet'.add_to_directory()<CR>",       "Add by hash")
+  nomadnet_buf_map(buf, "d",    ":lua require'nvim-nomadnet'.remove_from_directory()<CR>",  "Remove entry")
+  nomadnet_buf_map(buf, "r",    ":lua require'nvim-nomadnet'.refresh()<CR>",                "Refresh")
+  nomadnet_buf_map(buf, "q",    ":bdelete<CR>",                                             "Close")
 
   vim.api.nvim_set_current_buf(buf)
   state.current_view = "directory"
@@ -304,9 +396,16 @@ end
 -- ── Render RRC channels ──────────────────────────────────────────
 
 local function render_channels()
+  vim.notify("[debug] render_channels called", vim.log.levels.DEBUG)
   local ok, channels = pcall(vim.fn["NvaRRCChannels"])
   if not ok or not channels then
     vim.api.nvim_err_writeln("NomadNet not running.")
+    return
+  end
+  channels = check_response(channels, "channels")
+  if not channels then
+    show_waiting_buffer("channels", "Channels",
+      "Waiting for NomadNet RRC channels...")
     return
   end
 
@@ -355,6 +454,12 @@ function M.setup(opts)
   M.config = vim.tbl_deep_extend("force", M.config, opts or {})
   if M.config.verbose then
     vim.env.NVA_VERBOSE = "1"
+  end
+
+  -- Add plugin syntax directory to runtime path (for nomadnet filetype)
+  local plugin_dir = vim.fn.stdpath("data") .. "/lazy/nvim-nomadnet"
+  if vim.fn.isdirectory(plugin_dir .. "/syntax") == 1 then
+    vim.cmd("set runtimepath^=" .. plugin_dir)
   end
 
   -- Create user commands
@@ -406,6 +511,45 @@ function M.setup(opts)
     end
   end
 
+  -- Command to toggle verbose mode for diagnostics
+  vim.api.nvim_create_user_command("NvaDebug", function()
+    if vim.env.NVA_VERBOSE then
+      vim.env.NVA_VERBOSE = nil
+      vim.notify("NomadNet verbose mode disabled", vim.log.levels.INFO)
+    else
+      vim.env.NVA_VERBOSE = "1"
+      vim.notify("NomadNet verbose mode enabled (restart required)", vim.log.levels.INFO)
+    end
+  end, {})
+
+  -- Command to view the log file
+  vim.api.nvim_create_user_command("NvaLog", function()
+    local logfile = vim.fn.expand("~/.nomadnetwork/nvim-nomadnet.log")
+    if vim.fn.filereadable(logfile) == 1 then
+      vim.cmd("tabedit " .. logfile)
+      vim.bo.filetype = "log"
+      vim.bo.modified = false
+      vim.api.nvim_buf_set_keymap(0, "n", "q", ":q<CR>", { noremap = true, silent = true, desc = "Close log" })
+    else
+      vim.notify("Log file not found at " .. logfile, vim.log.levels.WARN)
+    end
+  end, {})
+
+  -- Command to check startup status
+  vim.api.nvim_create_user_command("NvaStatus", function()
+    local ok, ident = pcall(vim.fn["NvaIdentity"])
+    if ok and ident then
+      if ident[1] then
+        vim.notify(string.format("NomadNet running. Identity: %s, Name: %s",
+          identity_short(ident[1]), ident[2] or "?"), vim.log.levels.INFO)
+      elseif ident[3] then
+        vim.notify(ident[3], vim.log.levels.WARN)
+      end
+    else
+      vim.notify("NomadNet not started. Use :NvaStart", vim.log.levels.WARN)
+    end
+  end, {})
+
   -- Tab mapping: cycle through views
   vim.api.nvim_set_keymap("n", "<Plug>(nomadnet-cycle)",
     ":lua require'nvim-nomadnet'.cycle_view()<CR>",
@@ -417,7 +561,24 @@ function M.start(configdir, rnsconfigdir)
   if configdir then args = args .. " " .. vim.fn.shellescape(configdir) end
   if rnsconfigdir then args = args .. " " .. vim.fn.shellescape(rnsconfigdir) end
   pcall(vim.api.nvim_command, "NvaStart" .. args)
-  vim.notify("NomadNet starting...")
+  vim.notify("NomadNet starting (initialising Reticulum network)...", vim.log.levels.INFO)
+end
+
+function M.on_startup_began()
+  state.running = false
+  vim.notify("NomadNet is starting up (initialising Reticulum network)...", vim.log.levels.INFO)
+end
+
+function M.on_startup_complete()
+  state.running = true
+  _notified_startup = {}  -- reset so restart shows notifications again
+  vim.notify("NomadNet started successfully!", vim.log.levels.INFO)
+end
+
+function M.on_stop()
+  state.running = false
+  _notified_startup = {}  -- reset so next start shows notifications
+  vim.notify("NomadNet stopped.", vim.log.levels.INFO)
 end
 
 function M.stop()
@@ -552,6 +713,70 @@ function M.delete_conversation()
   end
 end
 
+function M.open_directory_entry()
+  local buf = vim.api.nvim_get_current_buf()
+  local ok, entries = pcall(vim.api.nvim_buf_get_var, buf, "nomadnet_entries")
+  if not ok or not entries then return end
+
+  local line = vim.fn.line(".") - 3
+  if line < 1 or line > #entries then return end
+
+  local entry = entries[line]
+  -- entry = { src_hash, display_name, trust_level, hosts_node, sort_rank, notes }
+  local src_hash = entry[1]
+  local display  = entry[2] or identity_short(src_hash)
+  local hosts_node = entry[4]
+  local notes = entry[6] or ""
+
+  -- Show an info buffer with actions
+  local info = vim.api.nvim_create_buf(false, true)
+  setup_nomadnet_buffer(info, "dir-" .. identity_short(src_hash), display)
+
+  local lines = {
+    "  " .. display,
+    string.rep("─", 50),
+    "",
+    ("  Hash:  %s"):format(src_hash),
+    ("  Trust: %s"):format(trust_name(entry[3])),
+  }
+  if hosts_node then
+    table.insert(lines, "  Hosts: node (🖥)")
+  end
+  if notes and #notes > 0 then
+    table.insert(lines, "")
+    table.insert(lines, "  Notes:")
+    for _, nl in ipairs(vim.split(notes, "\n")) do
+      table.insert(lines, "    " .. nl)
+    end
+  end
+  table.insert(lines, "")
+  table.insert(lines, "  ┌─ Actions ────────────────────────────────┐")
+
+  if hosts_node then
+    -- Pad to 46 chars total (2 indent + 44 box). Box = │ + ' ' + text + padding + ' │' = 44
+    local browse_text = ("<CR>  Browse node  (%s)"):format(identity_short(src_hash))
+    local pad = string.rep(" ", 40 - #browse_text)
+    table.insert(lines, "  │ " .. browse_text .. pad .. " │")
+  end
+  table.insert(lines, "  │ m     Send message                       │")
+  table.insert(lines, "  └──────────────────────────────────────────┘")
+
+  vim.api.nvim_buf_set_lines(info, 0, -1, false, lines)
+  vim.api.nvim_buf_set_option(info, "modified", false)
+
+  if hosts_node then
+    nomadnet_buf_map(info, "<CR>",
+      (":lua require'nvim-nomadnet'.fetch_page('lxmf@%s/page/index.mu')<CR>"):format(src_hash),
+      "Browse node")
+  end
+  nomadnet_buf_map(info, "m",
+    (":lua require'nvim-nomadnet'.compose_message('%s')<CR>"):format(src_hash),
+    "Send message")
+  nomadnet_buf_map(info, "q", ":bdelete<CR>", "Close")
+
+  vim.api.nvim_set_current_buf(info)
+end
+
 function M.open_announce()
   local buf = vim.api.nvim_get_current_buf()
   local entries = vim.api.nvim_buf_get_var(buf, "nomadnet_entries")
@@ -570,20 +795,36 @@ function M.open_announce()
   local info = vim.api.nvim_create_buf(false, true)
   setup_nomadnet_buffer(info, "announce-" .. identity_short(src_hash), "Announce")
 
+  local data_preview = (data or ""):gsub("[\r\n]", " "):sub(1, 60)
+
+  -- Store announce info so add_announce_to_directory works from this buffer
+  pcall(vim.api.nvim_buf_set_var, info, "nomadnet_announce_info", { src_hash, data, atype })
+
   local lines = {
     "  Announce Info",
     string.rep("─", 50),
     "",
     ("  Hash:  %s"):format(src_hash),
     ("  Type:  %s"):format(atype),
-    ("  Data:  %s"):format(data or ""),
-    "",
-    "  [<CR>] Browse node   [q] Close",
   }
+  if data_preview and #data_preview > 0 then
+    table.insert(lines, ("  Data:  %s"):format(data_preview))
+  end
+  table.insert(lines, "")
+  table.insert(lines, "  ┌─ Actions ────────────────────────────────┐")
+  table.insert(lines, ("  │ <CR>  Browse node                        │"))
+  table.insert(lines, ("  │ a     Add to directory                   │"))
+  table.insert(lines, "  └──────────────────────────────────────────┘")
+
   vim.api.nvim_buf_set_lines(info, 0, -1, false, lines)
   vim.api.nvim_buf_set_option(info, "modified", false)
 
-  nomadnet_buf_map(info, "<CR>", (":lua require'nvim-nomadnet'.fetch_page('lxmf@%s/page/index.mu')<CR>"):format(src_hash), "Browse")
+  nomadnet_buf_map(info, "<CR>",
+    (":lua require'nvim-nomadnet'.fetch_page('lxmf@%s/page/index.mu')<CR>"):format(src_hash),
+    "Browse")
+  nomadnet_buf_map(info, "a",
+    (":lua require'nvim-nomadnet'.add_announce_to_directory()<CR>"),
+    "Add to directory")
   nomadnet_buf_map(info, "q", ":bdelete<CR>", "Close")
 
   vim.api.nvim_set_current_buf(info)
@@ -630,9 +871,97 @@ function M.open_channel()
   vim.api.nvim_set_current_buf(m_buf)
 end
 
+-- ── Directory Management ─────────────────────────────────────────
+
+function M.add_to_directory()
+  -- Prompt for a source hash and optional display name, then add to directory
+  vim.ui.input({ prompt = "Source hash (hex): " }, function(hash)
+    if not hash or #hash == 0 then return end
+    vim.ui.input({ prompt = "Display name (optional): " }, function(name)
+      local result = pcall(vim.fn["NvaAddToDirectory"], hash, name or "")
+      if result then
+        vim.notify("Added to directory", vim.log.levels.INFO)
+        M.refresh()
+      else
+        vim.notify("Failed to add to directory", vim.log.levels.ERROR)
+      end
+    end)
+  end)
+end
+
+function M.add_announce_to_directory()
+  -- Add the announce under the cursor to the directory
+  local buf = vim.api.nvim_get_current_buf()
+  local ok, entries = pcall(vim.api.nvim_buf_get_var, buf, "nomadnet_entries")
+
+  local src_hash, data, atype
+  if ok and entries then
+    -- Network announce list buffer: get entry by line number
+    local line = vim.fn.line(".") - 3
+    if line < 1 or line > #entries then return end
+    local announce = entries[line]
+    src_hash = announce[1]
+    data     = announce[2] or ""
+    atype    = announce[3] or "?"
+  else
+    -- Announce detail buffer: read buffer variable set in open_announce()
+    local ok2, info = pcall(vim.api.nvim_buf_get_var, buf, "nomadnet_announce_info")
+    if not ok2 or not info then return end
+    src_hash = info[1]
+    data     = info[2] or ""
+    atype    = info[3] or "?"
+  end
+
+  -- Use announce data as the display name if it looks like a name
+  local display_name = nil
+  if data and #data > 0 and not data:match("^[a-fA-F0-9]+$") then
+    display_name = data
+  end
+
+  local result = vim.fn["NvaAddToDirectory"](src_hash, display_name or "")
+  if type(result) == "table" and result.ok then
+    vim.notify("Added " .. atype .. " to directory", vim.log.levels.INFO)
+    M.refresh()
+  elseif type(result) == "table" and result.info then
+    vim.notify(result.info, vim.log.levels.INFO)
+  else
+    vim.notify("Failed to add to directory", vim.log.levels.ERROR)
+  end
+end
+
+function M.remove_from_directory()
+  local buf = vim.api.nvim_get_current_buf()
+  local ok, entries = pcall(vim.api.nvim_buf_get_var, buf, "nomadnet_entries")
+  if not ok or not entries then return end
+
+  local line = vim.fn.line(".") - 3
+  if line < 1 or line > #entries then return end
+
+  local entry = entries[line]
+  -- entry = { src_hash, display_name, trust_level, hosts_node, sort_rank, notes }
+  local src_hash = entry[1]
+  local display  = entry[2] or identity_short(src_hash)
+
+  local confirm = vim.fn.confirm(
+    ('Remove "%s" from directory?'):format(display),
+    "&Yes\n&No", 2)
+  if confirm == 1 then
+    local result = vim.fn["NvaRemoveFromDirectory"](src_hash)
+    if type(result) == "table" and result.ok then
+      vim.notify("Removed from directory", vim.log.levels.INFO)
+      M.refresh()
+    else
+      vim.notify("Failed to remove from directory", vim.log.levels.ERROR)
+    end
+  end
+end
+
 function M.fetch_page(url)
+  vim.notify("[debug] fetch_page called: " .. tostring(url), vim.log.levels.DEBUG)
   vim.notify("Fetching " .. url .. " ...")
+  vim.notify("[debug] calling NvaFetchPage...", vim.log.levels.DEBUG)
   pcall(vim.fn["NvaFetchPage"], url)
+  vim.notify("[debug] NvaFetchPage returned", vim.log.levels.DEBUG)
 end
 
 function M.fetch_url()
@@ -643,15 +972,76 @@ function M.fetch_url()
   end)
 end
 
+-- ── Page link navigation ─────────────────────────────────────────
+
+function M.open_page_link()
+  local buf = vim.api.nvim_get_current_buf()
+  local ok, links = pcall(vim.api.nvim_buf_get_var, buf, "nomadnet_links")
+  if not ok or not links or #links == 0 then
+    vim.notify("No links on this page", vim.log.levels.INFO)
+    return
+  end
+
+  local cursor = vim.api.nvim_win_get_cursor(0)
+  local row = cursor[1] - 1  -- 0-based
+  local col = cursor[2]
+
+  for _, link in ipairs(links) do
+    local lrow = link[1]  -- 0-based row
+    local lcs = link[2]
+    local lce = link[3]
+    local url = link[4]
+    if lrow == row and col >= lcs and col < lce then
+      M.fetch_page(url)
+      return
+    end
+  end
+
+  vim.notify("No link at cursor", vim.log.levels.INFO)
+end
+
+function M.next_page_link()
+  local buf = vim.api.nvim_get_current_buf()
+  local ok, links = pcall(vim.api.nvim_buf_get_var, buf, "nomadnet_links")
+  if not ok or not links or #links == 0 then return end
+
+  local cursor = vim.api.nvim_win_get_cursor(0)
+  local row = cursor[1] - 1  -- 0-based
+  local col = cursor[2]
+
+  -- Find the next link (after current cursor position), wrapping around
+  local target
+  for i, link in ipairs(links) do
+    local lrow = link[1]
+    local lcs = link[2]
+    if lrow > row or (lrow == row and lcs > col) then
+      target = link
+      break
+    end
+  end
+  if not target then
+    -- Wrap to first link
+    target = links[1]
+  end
+
+  -- Move cursor to link position
+  vim.api.nvim_win_set_cursor(0, { target[1] + 1, target[2] })
+end
+
 -- ── Statusline / info ────────────────────────────────────────────
 
 function M.statusline()
-  if not state.running then return "NomadNet: ⏹" end
   local ok, ident = pcall(vim.fn["NvaIdentity"])
-  if ok and ident and ident[1] then
-    return "NomadNet: " .. identity_short(ident[1])
+  if ok and ident then
+    if ident[1] then
+      return "NomadNet: " .. identity_short(ident[1])
+    end
+    if ident[3] then
+      -- ident[3] contains status string (e.g. "NomadNet is still starting up...")
+      return "NomadNet: ⏳ init..."
+    end
   end
-  return "NomadNet: starting..."
+  return "NomadNet: ⏹"
 end
 
 -- ── Export ───────────────────────────────────────────────────────

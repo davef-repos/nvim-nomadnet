@@ -56,14 +56,12 @@ Option C — Manual~
 
 LAZY.NVIM SETUP                              *nvim-nomadnet-lazy*
 
-Place the following in |~/.config/nvim/lua/plugins/nvim-nomadnet.lua|:
-
-  local plugin_root = vim.fn.expand("~/src/nvim-nomadnet")
-  local is_dev = vim.fn.isdirectory(plugin_root) == 1
+Place the following in your lazy.nvim plugins directory:
 
   return {
     {
       name = "nvim-nomadnet",
+      url = "yourusername/nvim-nomadnet",
       opts = {
         configdir = nil,
         rnsconfigdir = nil,
@@ -73,7 +71,6 @@ Place the following in |~/.config/nvim/lua/plugins/nvim-nomadnet.lua|:
         require("nvim-nomadnet").setup(opts)
       end,
       lazy = false,
-      dir = is_dev and plugin_root or nil,
       build = function()
         -- See lazy-setup.lua for full build function
       end,
@@ -85,9 +82,10 @@ Python host configuration~
 
   > require("config.nomadnet-python")
 
-  In |~/.config/nvim/lua/config/nomadnet-python.lua|:
+  In your Python provider config file:
 
-  > local plugin_venv = vim.fn.expand("~/src/nvim-nomadnet/.venv/bin/python3")
+  > local plugin_root = vim.fn.stdpath("data") .. "/lazy/nvim-nomadnet"
+  > local plugin_venv = plugin_root .. "/.venv/bin/python3"
   > if vim.fn.executable(plugin_venv) == 1 then
   >   vim.g.python3_host_prog = plugin_venv
   > end
@@ -218,12 +216,12 @@ Public Lua API:~
 ==============================================================================
 UPDATING                                       *nvim-nomadnet-updating*
 
-From GitHub (once hosted):~
+From GitHub:~
   > :Lazy update nvim-nomadnet
   lazy.nvim will clone with submodules if |submodules = true| is set.
 
-From local development copy:~
-  > cd ~/src/nvim-nomadnet
+From a local clone:~
+  > cd /path/to/nvim-nomadnet
   > git pull
   > git submodule update --remote
   > nvim --headless "+Lazy build nvim-nomadnet" +qa
@@ -233,17 +231,17 @@ TROUBLESHOOTING                               *nvim-nomadnet-troubleshooting*
 
 "Python 3 provider is not available"~
   Ensure your Python virtualenv has pynvim:
-  > cd ~/src/nvim-nomadnet
+  > cd /path/to/nvim-nomadnet
   > .venv/bin/pip install pynvim rns lxmf
   > .venv/bin/pip install -e nomadnet_core
   Then configure in |init.lua|:
-  > vim.g.python3_host_prog = "~/src/nvim-nomadnet/.venv/bin/python3"
+  > vim.g.python3_host_prog = vim.fn.expand("~/.local/share/nvim/...")
 
 "No commands available"~
   Run |:UpdateRemotePlugins| and restart Neovim. Ensure the rplugin is
   symlinked:
-  > ln -sf ~/src/nvim-nomadnet/python/nva.py
-  > ~/.config/nvim/rplugin/python3/nva.py
+  > ln -sf /path/to/nvim-nomadnet/python/nva.py \
+  >       ~/.config/nvim/rplugin/python3/nva.py
 
 Check health~
   > :checkhealth provider.python
