@@ -405,6 +405,6 @@ Check RNS logs at `~/.reticulum/logfile` and NomadNet logs at `~/.nomadnetwork/l
 
 ## License
 
-MIT — See [LICENSE](https://github.com/markqvist/NomadNet/blob/master/LICENSE) for details.
+GNU General Public License v3.0 — See [LICENSE](./LICENSE) for details.
 
 Built on the work of [Mark Qvist](https://github.com/markqvist) and the NomadNet / Reticulum community.
